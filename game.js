@@ -68,32 +68,34 @@ class GameScene extends Phaser.Scene {
   create() {
     const W = this.scale.width;
     const H = this.scale.height;
+    this.controlsBarHeight = 100;
+    this.gameplayBottomY = H - this.controlsBarHeight;
 
     this.cameras.main.setBackgroundColor('#3a7bd5');
 
     const WORLD_W = 2400;
-    this.physics.world.setBounds(0, 0, WORLD_W, H);
-    this.cameras.main.setBounds(0, 0, WORLD_W, H);
+    this.physics.world.setBounds(0, 0, WORLD_W, this.gameplayBottomY);
+    this.cameras.main.setBounds(0, 0, WORLD_W, this.gameplayBottomY);
 
     // ── Ground ───────────────────────────────────────────────
     this.platforms = this.physics.add.staticGroup();
     for (let x = 0; x < WORLD_W; x += 800) {
-      this.platforms.create(x + 400, H - 10, 'ground')
+      this.platforms.create(x + 400, this.gameplayBottomY - 10, 'ground')
         .setScale(1, 1).refreshBody();
     }
 
     const platPositions = [
-      [300, H - 140], [500, H - 210], [750, H - 140],
-      [950, H - 250], [1150, H - 160], [1350, H - 250],
-      [1600, H - 190], [1800, H - 270], [2000, H - 170],
-      [2200, H - 250], [2350, H - 140],
+      [300, this.gameplayBottomY - 140], [500, this.gameplayBottomY - 210], [750, this.gameplayBottomY - 140],
+      [950, this.gameplayBottomY - 250], [1150, this.gameplayBottomY - 160], [1350, this.gameplayBottomY - 250],
+      [1600, this.gameplayBottomY - 190], [1800, this.gameplayBottomY - 270], [2000, this.gameplayBottomY - 170],
+      [2200, this.gameplayBottomY - 250], [2350, this.gameplayBottomY - 140],
     ];
     platPositions.forEach(([x, y]) => {
       this.platforms.create(x, y, 'platform').refreshBody();
     });
 
     // ── Player ───────────────────────────────────────────────
-    this.player = this.physics.add.sprite(80, H - 100, 'player');
+    this.player = this.physics.add.sprite(80, this.gameplayBottomY - 100, 'player');
     this.player.setCollideWorldBounds(true);
     this.player.setBounce(0.1);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
@@ -101,18 +103,18 @@ class GameScene extends Phaser.Scene {
     // ── Coins ────────────────────────────────────────────────
     this.coins = this.physics.add.staticGroup();
     [
-      [300, H-170], [330, H-170], [360, H-170],
-      [500, H-240], [530, H-240],
-      [950, H-280], [980, H-280], [1010, H-280],
-      [1350, H-280], [1380, H-280],
-      [1800, H-300], [1830, H-300], [1860, H-300],
-      [2200, H-280], [2230, H-280],
+      [300, this.gameplayBottomY - 170], [330, this.gameplayBottomY - 170], [360, this.gameplayBottomY - 170],
+      [500, this.gameplayBottomY - 240], [530, this.gameplayBottomY - 240],
+      [950, this.gameplayBottomY - 280], [980, this.gameplayBottomY - 280], [1010, this.gameplayBottomY - 280],
+      [1350, this.gameplayBottomY - 280], [1380, this.gameplayBottomY - 280],
+      [1800, this.gameplayBottomY - 300], [1830, this.gameplayBottomY - 300], [1860, this.gameplayBottomY - 300],
+      [2200, this.gameplayBottomY - 280], [2230, this.gameplayBottomY - 280],
     ].forEach(([x, y]) => this.coins.create(x, y, 'coin'));
 
     // ── Enemies ──────────────────────────────────────────────
     this.enemies = this.physics.add.group();
     [500, 1000, 1500, 2000].forEach(x => {
-      const e = this.enemies.create(x, H - 100, 'enemy');
+      const e = this.enemies.create(x, this.gameplayBottomY - 100, 'enemy');
       e.setCollideWorldBounds(true);
       e.setBounce(1, 0);
       e.setVelocityX(60);
@@ -127,7 +129,7 @@ class GameScene extends Phaser.Scene {
       fontSize: '20px', fill: '#fff', fontFamily: 'monospace'
     }).setScrollFactor(0).setDepth(10);
 
-    this.livesText = this.add.text(W - 120, 16, 'Lives: 3', {
+    this.livesText = this.add.text(W - 170, 16, 'Lives: 3', {
       fontSize: '20px', fill: '#fff', fontFamily: 'monospace'
     }).setScrollFactor(0).setDepth(10);
 
@@ -152,23 +154,23 @@ class GameScene extends Phaser.Scene {
     this.isInvincible = false;
     this.isPaused = false;
     this.isGameOver = false;
-    this.createPauseButton(W);
+    this.createPauseButton();
   }
 
-  createPauseButton(W) {
-    this.pauseBtn = this.add.rectangle(W - 80, 48, 110, 40, 0x000000, 0.35)
+  createPauseButton() {
+    this.pauseBtn = this.add.rectangle(this.scale.width - 80, 48, 120, 42, 0x000000, 0.7)
       .setScrollFactor(0)
-      .setDepth(30)
+      .setDepth(1000)
       .setInteractive({ useHandCursor: true });
 
-    this.pauseText = this.add.text(W - 80, 48, 'Pause', {
+    this.pauseText = this.add.text(this.scale.width - 80, 48, 'Pause', {
       fontSize: '18px',
       fontFamily: 'monospace',
       fill: '#ffffff'
     })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(31);
+      .setDepth(1001);
 
     this.pauseBtn.on('pointerdown', () => this.togglePause());
   }
@@ -192,17 +194,22 @@ class GameScene extends Phaser.Scene {
 
   // ── Touch buttons ─────────────────────────────────────────
   createTouchControls(W, H) {
-    const btnY   = H - 55;
-    const alpha  = 0.35;
-    const radius = 38;
+    // Dedicated control strip at the bottom to avoid covering gameplay.
+    this.add.rectangle(W / 2, H - (this.controlsBarHeight / 2), W, this.controlsBarHeight, 0x000000, 0.25)
+      .setScrollFactor(0)
+      .setDepth(40);
+
+    const btnY   = H - (this.controlsBarHeight / 2);
+    const alpha  = 0.45;
+    const radius = 32;
 
     const makeBtn = (x, y, label, onDown, onUp) => {
       const circle = this.add.circle(x, y, radius, 0xffffff, alpha)
-        .setScrollFactor(0).setDepth(20)
+        .setScrollFactor(0).setDepth(50)
         .setInteractive();
       this.add.text(x, y, label, {
         fontSize: '22px', fontFamily: 'monospace', fill: '#fff'
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(51);
 
       circle.on('pointerdown',   onDown);
       circle.on('pointerup',     onUp);
@@ -210,8 +217,8 @@ class GameScene extends Phaser.Scene {
       circle.on('pointercancel', onUp);
     };
 
-    makeBtn(60,  btnY, '◀', () => this.touch.left  = true,  () => this.touch.left  = false);
-    makeBtn(148, btnY, '▶', () => this.touch.right = true,  () => this.touch.right = false);
+    makeBtn(70,  btnY, '◀', () => this.touch.left  = true,  () => this.touch.left  = false);
+    makeBtn(150, btnY, '▶', () => this.touch.right = true,  () => this.touch.right = false);
     makeBtn(W - 70, btnY, '▲', () => this.touch.jump  = true,  () => this.touch.jump  = false);
 
     // Enable multi-touch
@@ -256,7 +263,7 @@ class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.player.setPosition(80, this.scale.height - 100);
+    this.player.setPosition(80, this.gameplayBottomY - 100);
     this.player.setVelocity(0, 0);
     this.isInvincible = true;
 
@@ -308,7 +315,7 @@ class GameScene extends Phaser.Scene {
     }
 
     // Fall death
-    if (player.y > this.scale.height + 50) {
+    if (player.y > this.gameplayBottomY + 50) {
       this.takeDamage();
     }
 
