@@ -124,15 +124,16 @@ class GameScene extends Phaser.Scene {
     // ── HUD ──────────────────────────────────────────────────
     this.score = 0;
     this.lives = 3;
-    this.moveDirection = 1;
+    // Auto-run starts moving left by default.
+    this.moveDirection = -1;
 
     this.scoreText = this.add.text(16, 16, 'Coins: 0', {
       fontSize: '20px', fill: '#fff', fontFamily: 'monospace'
     }).setScrollFactor(0).setDepth(10);
 
-    this.livesText = this.add.text(W - 320, 16, 'Lives: 3', {
+    this.livesText = this.add.text(W / 2, 16, 'Lives: 3', {
       fontSize: '20px', fill: '#fff', fontFamily: 'monospace'
-    }).setScrollFactor(0).setDepth(10);
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(10);
 
     // ── Collisions ───────────────────────────────────────────
     this.physics.add.collider(this.player, this.platforms);
@@ -156,15 +157,20 @@ class GameScene extends Phaser.Scene {
     this.isPaused = false;
     this.isGameOver = false;
     this.createPauseButton();
+    this.layoutHud();
+
+    this.scale.on('resize', () => {
+      this.layoutHud();
+    });
   }
 
   createPauseButton() {
-    this.pauseBtn = this.add.rectangle(this.scale.width - 82, 48, 120, 42, 0x000000, 0.7)
+    this.pauseBtn = this.add.rectangle(this.scale.width - 76, 48, 120, 42, 0x000000, 0.7)
       .setScrollFactor(0)
       .setDepth(1000)
       .setInteractive({ useHandCursor: true });
 
-    this.pauseText = this.add.text(this.scale.width - 82, 48, 'Pause', {
+    this.pauseText = this.add.text(this.scale.width - 76, 48, 'Pause', {
       fontSize: '18px',
       fontFamily: 'monospace',
       fill: '#ffffff'
@@ -174,6 +180,17 @@ class GameScene extends Phaser.Scene {
       .setDepth(1001);
 
     this.pauseBtn.on('pointerdown', () => this.togglePause());
+  }
+
+  layoutHud() {
+    const W = this.scale.width;
+    // Keep score top-left.
+    this.scoreText.setPosition(16, 16);
+    // Keep lives centered on top.
+    this.livesText.setPosition(W / 2, 16);
+    // Keep pause pinned top-right.
+    this.pauseBtn.setPosition(W - 76, 48);
+    this.pauseText.setPosition(W - 76, 48);
   }
 
   togglePause() {
@@ -272,7 +289,6 @@ class GameScene extends Phaser.Scene {
 
     this.player.setPosition(80, this.gameplayBottomY - 100);
     this.player.setVelocity(0, 0);
-    this.moveDirection = 1;
     this.isInvincible = true;
 
     this.tweens.add({
