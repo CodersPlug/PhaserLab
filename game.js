@@ -124,12 +124,13 @@ class GameScene extends Phaser.Scene {
     // ── HUD ──────────────────────────────────────────────────
     this.score = 0;
     this.lives = 3;
+    this.moveDirection = 1;
 
     this.scoreText = this.add.text(16, 16, 'Coins: 0', {
       fontSize: '20px', fill: '#fff', fontFamily: 'monospace'
     }).setScrollFactor(0).setDepth(10);
 
-    this.livesText = this.add.text(W - 170, 16, 'Lives: 3', {
+    this.livesText = this.add.text(W - 320, 16, 'Lives: 3', {
       fontSize: '20px', fill: '#fff', fontFamily: 'monospace'
     }).setScrollFactor(0).setDepth(10);
 
@@ -158,12 +159,12 @@ class GameScene extends Phaser.Scene {
   }
 
   createPauseButton() {
-    this.pauseBtn = this.add.rectangle(this.scale.width - 80, 48, 120, 42, 0x000000, 0.7)
+    this.pauseBtn = this.add.rectangle(this.scale.width - 82, 48, 120, 42, 0x000000, 0.7)
       .setScrollFactor(0)
       .setDepth(1000)
       .setInteractive({ useHandCursor: true });
 
-    this.pauseText = this.add.text(this.scale.width - 80, 48, 'Pause', {
+    this.pauseText = this.add.text(this.scale.width - 82, 48, 'Pause', {
       fontSize: '18px',
       fontFamily: 'monospace',
       fill: '#ffffff'
@@ -217,9 +218,15 @@ class GameScene extends Phaser.Scene {
       circle.on('pointercancel', onUp);
     };
 
-    makeBtn(70,  btnY, '◀', () => this.touch.left  = true,  () => this.touch.left  = false);
-    makeBtn(150, btnY, '▶', () => this.touch.right = true,  () => this.touch.right = false);
-    makeBtn(W - 70, btnY, '▲', () => this.touch.jump  = true,  () => this.touch.jump  = false);
+    // Right-side triangle layout:
+    // left/right at bottom, jump centered above them.
+    const rightX = W - 70;
+    const leftX = W - 150;
+    const jumpX = W - 110;
+    const jumpY = btnY - 55;
+    makeBtn(leftX,  btnY,  '◀', () => this.touch.left  = true,  () => this.touch.left  = false);
+    makeBtn(rightX, btnY,  '▶', () => this.touch.right = true,  () => this.touch.right = false);
+    makeBtn(jumpX,  jumpY, '▲', () => this.touch.jump  = true,  () => this.touch.jump  = false);
 
     // Enable multi-touch
     this.input.addPointer(2);
@@ -265,6 +272,7 @@ class GameScene extends Phaser.Scene {
 
     this.player.setPosition(80, this.gameplayBottomY - 100);
     this.player.setVelocity(0, 0);
+    this.moveDirection = 1;
     this.isInvincible = true;
 
     this.tweens.add({
@@ -286,18 +294,20 @@ class GameScene extends Phaser.Scene {
     if (this.isPaused || this.isGameOver) return;
     const onGround = player.body.blocked.down;
 
+    // Auto-run behavior: player always moves.
+    // Left/Right only switch direction.
     const goLeft  = cursors.left.isDown  || wasd.left.isDown  || touch.left;
     const goRight = cursors.right.isDown || wasd.right.isDown || touch.right;
 
     if (goLeft) {
-      player.setVelocityX(-MOVE_SPEED);
-      player.setFlipX(true);
-    } else if (goRight) {
-      player.setVelocityX(MOVE_SPEED);
-      player.setFlipX(false);
-    } else {
-      player.setVelocityX(0);
+      this.moveDirection = -1;
     }
+    if (goRight) {
+      this.moveDirection = 1;
+    }
+
+    player.setVelocityX(this.moveDirection * MOVE_SPEED);
+    player.setFlipX(this.moveDirection < 0);
 
     const jumpPressed = Phaser.Input.Keyboard.JustDown(cursors.up)
                      || Phaser.Input.Keyboard.JustDown(wasd.up)
