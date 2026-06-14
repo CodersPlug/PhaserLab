@@ -114,22 +114,25 @@ class GameScene extends Phaser.Scene {
     this.score = 0;
     this.lives = 3;
 
-    // Coins: top-left
-    this.scoreText = this.add.text(16, 14, 'Coins: 0', {
-      fontSize: '22px', fill: '#fff', fontFamily: 'monospace',
-    }).setScrollFactor(0).setDepth(100);
+    // All three HUD elements share the same center Y — no misalignment.
+    const HUD_Y = 38;
 
-    // Lives: top-center — GW/2 is always the horizontal center
-    this.livesText = this.add.text(GW / 2, 14, 'Lives: 3', {
+    // Coins: top-left, vertically centered on HUD_Y
+    this.scoreText = this.add.text(16, HUD_Y, 'Coins: 0', {
       fontSize: '22px', fill: '#fff', fontFamily: 'monospace',
-    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(100);
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(100);
 
-    // Pause: top-right — anchored to GW
-    this.pauseBtn = this.add.rectangle(GW - 68, 42, 110, 40, 0x000000, 0.75)
+    // Lives: top-center, vertically centered on HUD_Y
+    this.livesText = this.add.text(GW / 2, HUD_Y, 'Lives: 3', {
+      fontSize: '22px', fill: '#fff', fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(100);
+
+    // Pause: top-right, rect and label both centered on HUD_Y
+    this.pauseBtn = this.add.rectangle(GW - 68, HUD_Y, 110, 38, 0x000000, 0.75)
       .setScrollFactor(0).setDepth(200).setInteractive({ useHandCursor: true });
-    this.pauseLabel = this.add.text(GW - 68, 42, 'Pause', {
+    this.pauseLabel = this.add.text(GW - 68, HUD_Y, 'Pause', {
       fontSize: '18px', fontFamily: 'monospace', fill: '#fff',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
+    }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(201);
     this.pauseBtn.on('pointerdown', () => this.togglePause());
 
     // ── Collisions ───────────────────────────────────────────
