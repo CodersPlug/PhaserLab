@@ -150,6 +150,44 @@ class GameScene extends Phaser.Scene {
     this.createTouchControls(W, H);
 
     this.isInvincible = false;
+    this.isPaused = false;
+    this.isGameOver = false;
+    this.createPauseButton(W);
+  }
+
+  createPauseButton(W) {
+    this.pauseBtn = this.add.rectangle(W - 80, 48, 110, 40, 0x000000, 0.35)
+      .setScrollFactor(0)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true });
+
+    this.pauseText = this.add.text(W - 80, 48, 'Pause', {
+      fontSize: '18px',
+      fontFamily: 'monospace',
+      fill: '#ffffff'
+    })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(31);
+
+    this.pauseBtn.on('pointerdown', () => this.togglePause());
+  }
+
+  togglePause() {
+    if (this.isGameOver) return;
+
+    this.isPaused = !this.isPaused;
+
+    if (this.isPaused) {
+      this.physics.world.pause();
+      this.pauseText.setText('Resume');
+      this.touch.left = false;
+      this.touch.right = false;
+      this.touch.jump = false;
+    } else {
+      this.physics.world.resume();
+      this.pauseText.setText('Pause');
+    }
   }
 
   // ── Touch buttons ─────────────────────────────────────────
@@ -202,11 +240,18 @@ class GameScene extends Phaser.Scene {
 
   // ── Take damage ───────────────────────────────────────────
   takeDamage() {
+    if (this.isGameOver) return;
+
     this.lives--;
     this.livesText.setText('Lives: ' + this.lives);
 
     if (this.lives <= 0) {
-      this.scene.pause();
+      this.isGameOver = true;
+      this.isPaused = false;
+      this.physics.world.pause();
+      this.touch.left = false;
+      this.touch.right = false;
+      this.touch.jump = false;
       this.scene.launch('GameOver');
       return;
     }
@@ -231,6 +276,7 @@ class GameScene extends Phaser.Scene {
   // ── Update (every frame) ──────────────────────────────────
   update() {
     const { cursors, wasd, player, touch } = this;
+    if (this.isPaused || this.isGameOver) return;
     const onGround = player.body.blocked.down;
 
     const goLeft  = cursors.left.isDown  || wasd.left.isDown  || touch.left;
@@ -279,10 +325,11 @@ const config = {
   type: Phaser.AUTO,
   backgroundColor: '#1a1a2e',
   scale: {
-    mode: Phaser.Scale.FIT,
+    parent: 'game',
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 800,
-    height: 450,
+    width: window.innerWidth,
+    height: window.innerHeight,
   },
   physics: {
     default: 'arcade',
