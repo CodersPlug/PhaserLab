@@ -17,6 +17,7 @@ const JUMP_FORCE  = 600;
 const JUMP_CUT    = 0.40; // velocity kept when jump released early (variable height)
 const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
+const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
@@ -378,6 +379,26 @@ class GameScene extends Phaser.Scene {
     const jumpDown = cursors.up.isDown || wasd.up.isDown || wasd.space.isDown || touch.jump;
     if (!jumpDown && player.body.velocity.y < 0) {
       player.setVelocityY(player.body.velocity.y * JUMP_CUT);
+    }
+
+    // ── Ledge climb assist ────────────────────────────────────────
+    // When the player hits the side of a platform while in the air,
+    // check if their bottom is within LEDGE_GRAB px of the platform top.
+    // If so, pop them up onto the surface instead of letting them bounce off.
+    if ((player.body.blocked.left || player.body.blocked.right) && !player.body.blocked.down) {
+      const b = player.body;
+      this.platforms.getChildren().forEach(plat => {
+        if (!plat.active) return;
+        const pb = plat.body;
+        const hOverlap = b.right > pb.left && b.left < pb.right;
+        if (!hOverlap) return;
+        const climbDepth = b.bottom - pb.top;
+        if (climbDepth > 0 && climbDepth <= LEDGE_GRAB) {
+          player.y -= climbDepth + 1;          // snap onto the surface
+          player.setVelocityY(-200);            // small upward pop for feel
+          this.lastGroundedAt = time;           // grant coyote so they can jump again immediately
+        }
+      });
     }
 
     // Fall off the bottom -> lose a life
