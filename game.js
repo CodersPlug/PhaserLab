@@ -11,15 +11,15 @@
 // ── Tunables ──────────────────────────────────────────────────
 const GW = 1024;          // logical game width
 const GH = 576;           // logical game height
-const GRAVITY     = 1300;
-const MOVE_SPEED  = 200;
-const JUMP_FORCE  = 600;
+const GRAVITY     = 900;
+const MOVE_SPEED  = 140;
+const JUMP_FORCE  = 480;
 const JUMP_CUT    = 0.40; // velocity kept when jump released early (variable height)
 const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '1.2';
+const VERSION = '1.3';
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
