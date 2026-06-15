@@ -19,6 +19,8 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
+const VERSION = '1.2';
+
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
 const WORLD_W     = 3400;
@@ -185,10 +187,24 @@ class GameScene extends Phaser.Scene {
     this.player.body.setSize(36, 44);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
-    this.physics.add.collider(this.player, this.platforms);
+    this.physics.add.collider(this.player, this.platforms, this.onPlatformCollide, null, this);
     this.physics.add.overlap(this.player, this.coins,   this.collectCoin, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.hitEnemy,    null, this);
     this.physics.add.overlap(this.player, this.goal,    this.reachGoal,   null, this);
+  }
+
+  // ─── Ledge climb: fires while collision is still live ───
+  onPlatformCollide(player, plat) {
+    const b  = player.body;
+    const pb = plat.body;
+    if (b.blocked.down) return; // normal landing — skip
+    if (!b.blocked.left && !b.blocked.right) return;
+    const climbDepth = b.bottom - pb.top;
+    if (climbDepth > 0 && climbDepth <= LEDGE_GRAB) {
+      player.y -= climbDepth + 2;
+      player.setVelocityY(-220);          // small upward pop
+      this.lastGroundedAt = this.time.now; // allow immediate jump from new surface
+    }
   }
 
   // ─── HUD: icon-led so a non-reader can parse it ───
@@ -211,6 +227,11 @@ class GameScene extends Phaser.Scene {
       }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
       this.hearts.push(h);
     }
+
+    // Version: bottom-left corner, small, dimmed
+    this.add.text(8, GH - CONTROLS_H - 4, 'v' + VERSION, {
+      fontSize: '14px', fontFamily: 'monospace', color: '#ffffff', alpha: 0.4,
+    }).setOrigin(0, 1).setScrollFactor(0).setDepth(100);
 
     // Pause: big icon button, top-right
     this.pauseBtn = this.add.circle(GW - 44, HUD_Y, 30, 0x000000, 0.45)
@@ -381,25 +402,8 @@ class GameScene extends Phaser.Scene {
       player.setVelocityY(player.body.velocity.y * JUMP_CUT);
     }
 
-    // ── Ledge climb assist ────────────────────────────────────────
-    // When the player hits the side of a platform while in the air,
-    // check if their bottom is within LEDGE_GRAB px of the platform top.
-    // If so, pop them up onto the surface instead of letting them bounce off.
-    if ((player.body.blocked.left || player.body.blocked.right) && !player.body.blocked.down) {
-      const b = player.body;
-      this.platforms.getChildren().forEach(plat => {
-        if (!plat.active) return;
-        const pb = plat.body;
-        const hOverlap = b.right > pb.left && b.left < pb.right;
-        if (!hOverlap) return;
-        const climbDepth = b.bottom - pb.top;
-        if (climbDepth > 0 && climbDepth <= LEDGE_GRAB) {
-          player.y -= climbDepth + 1;          // snap onto the surface
-          player.setVelocityY(-200);            // small upward pop for feel
-          this.lastGroundedAt = time;           // grant coyote so they can jump again immediately
-        }
-      });
-    }
+    // Auto-reverse at the left world boundary
+    if (player.body.x <= 0) this.moveDirection = 1;
 
     // Fall off the bottom -> lose a life
     if (player.y > GAMEPLAY_H + 60) this.takeDamage();
