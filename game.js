@@ -19,7 +19,7 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '1.3';
+const VERSION = '1.4';
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
@@ -56,9 +56,9 @@ function makeTextures(scene) {
 
   // floating platform
   g.clear();
-  g.fillStyle(0x8a5a2b); g.fillRoundedRect(0, 0, 140, 28, 8);
-  g.fillStyle(C.plat);   g.fillRoundedRect(0, 0, 140, 14, 8);
-  g.generateTexture('platform', 140, 28);
+  g.fillStyle(0x8a5a2b); g.fillRoundedRect(0, 0, 220, 28, 8);
+  g.fillStyle(C.plat);   g.fillRoundedRect(0, 0, 220, 14, 8);
+  g.generateTexture('platform', 220, 28);
 
   // coin
   g.clear();
@@ -144,22 +144,22 @@ class GameScene extends Phaser.Scene {
     }
 
     const plats = [
-      [320,  GAMEPLAY_H - 140], [560,  GAMEPLAY_H - 215], [820,  GAMEPLAY_H - 150],
-      [1080, GAMEPLAY_H - 240], [1340, GAMEPLAY_H - 160], [1600, GAMEPLAY_H - 240],
-      [1860, GAMEPLAY_H - 180], [2120, GAMEPLAY_H - 260], [2380, GAMEPLAY_H - 170],
-      [2680, GAMEPLAY_H - 240], [2980, GAMEPLAY_H - 150],
+      [300,  GAMEPLAY_H - 120], [520,  GAMEPLAY_H - 170], [740,  GAMEPLAY_H - 120],
+      [960,  GAMEPLAY_H - 190], [1180, GAMEPLAY_H - 130], [1400, GAMEPLAY_H - 190],
+      [1620, GAMEPLAY_H - 150], [1840, GAMEPLAY_H - 200], [2060, GAMEPLAY_H - 140],
+      [2300, GAMEPLAY_H - 190], [2540, GAMEPLAY_H - 120], [2780, GAMEPLAY_H - 170],
     ];
     plats.forEach(([x, y]) => this.platforms.create(x, y, 'platform').refreshBody());
 
     // Coins (above platforms and along the path)
     this.coins = this.physics.add.staticGroup();
     const coinSpots = [
-      [320, -185], [355, -185], [390, -185],
-      [560, -260], [595, -260],
-      [1080, -290], [1115, -290], [1150, -290],
-      [1600, -290], [1635, -290],
-      [2120, -310], [2155, -310], [2190, -310],
-      [2680, -290], [2715, -290],
+      [270, -165], [300, -165], [330, -165],
+      [500, -215], [530, -215],
+      [930, -235], [960, -235], [990, -235],
+      [1370, -235], [1400, -235],
+      [1810, -245], [1840, -245], [1870, -245],
+      [2270, -235], [2300, -235],
     ];
     coinSpots.forEach(([x, dy]) => {
       const c = this.coins.create(x, GAMEPLAY_H + dy, 'coin');
