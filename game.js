@@ -19,7 +19,7 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '1.4';
+const VERSION = '1.5';
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
@@ -89,9 +89,56 @@ function makeTextures(scene) {
   g.destroy();
 }
 
+// ── Level data ────────────────────────────────────────────────
+// Each entry drives buildLevel(). Level 2 is ~5% harder:
+//   slightly narrower platforms (200 vs 220px), slightly higher,
+//   gaps ~20px wider, one extra enemy.
+const LEVELS = [
+  {
+    platW: 220,
+    plats: [
+      [300,  GAMEPLAY_H - 120], [520,  GAMEPLAY_H - 170], [740,  GAMEPLAY_H - 120],
+      [960,  GAMEPLAY_H - 190], [1180, GAMEPLAY_H - 130], [1400, GAMEPLAY_H - 190],
+      [1620, GAMEPLAY_H - 150], [1840, GAMEPLAY_H - 200], [2060, GAMEPLAY_H - 140],
+      [2300, GAMEPLAY_H - 190], [2540, GAMEPLAY_H - 120], [2780, GAMEPLAY_H - 170],
+    ],
+    coins: [
+      [270, -165], [300, -165], [330, -165],
+      [500, -215], [530, -215],
+      [930, -235], [960, -235], [990, -235],
+      [1370, -235], [1400, -235],
+      [1810, -245], [1840, -245], [1870, -245],
+      [2270, -235], [2300, -235],
+    ],
+    enemies: [620, 1240, 1920, 2560],
+  },
+  {
+    platW: 200,
+    plats: [
+      [290,  GAMEPLAY_H - 135], [525,  GAMEPLAY_H - 185], [760,  GAMEPLAY_H - 135],
+      [995,  GAMEPLAY_H - 205], [1230, GAMEPLAY_H - 145], [1465, GAMEPLAY_H - 205],
+      [1700, GAMEPLAY_H - 165], [1935, GAMEPLAY_H - 215], [2170, GAMEPLAY_H - 150],
+      [2415, GAMEPLAY_H - 205], [2660, GAMEPLAY_H - 135], [2905, GAMEPLAY_H - 180],
+    ],
+    coins: [
+      [260, -180], [290, -180], [320, -180],
+      [505, -230], [535, -230],
+      [965, -250], [995, -250], [1025, -250],
+      [1435, -250], [1465, -250],
+      [1905, -260], [1935, -260], [1965, -260],
+      [2385, -250], [2415, -250],
+    ],
+    enemies: [600, 1200, 1860, 2480, 3050],
+  },
+];
+
 // ── Main Game Scene ───────────────────────────────────────────
 class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
+
+  init(data) {
+    this.levelNum = (data && data.level) || 1;
+  }
 
   preload() { makeTextures(this); }
 
@@ -137,45 +184,37 @@ class GameScene extends Phaser.Scene {
   }
 
   buildLevel() {
-    // Continuous ground built from 64px tiles
+    const lvl = LEVELS[this.levelNum - 1];
+
+    // Continuous ground
     this.platforms = this.physics.add.staticGroup();
     for (let x = 32; x < WORLD_W; x += 64) {
       this.platforms.create(x, GAMEPLAY_H - 32, 'ground').refreshBody();
     }
 
-    const plats = [
-      [300,  GAMEPLAY_H - 120], [520,  GAMEPLAY_H - 170], [740,  GAMEPLAY_H - 120],
-      [960,  GAMEPLAY_H - 190], [1180, GAMEPLAY_H - 130], [1400, GAMEPLAY_H - 190],
-      [1620, GAMEPLAY_H - 150], [1840, GAMEPLAY_H - 200], [2060, GAMEPLAY_H - 140],
-      [2300, GAMEPLAY_H - 190], [2540, GAMEPLAY_H - 120], [2780, GAMEPLAY_H - 170],
-    ];
-    plats.forEach(([x, y]) => this.platforms.create(x, y, 'platform').refreshBody());
+    // Floating platforms — width comes from level data
+    lvl.plats.forEach(([x, y]) => {
+      const p = this.platforms.create(x, y, 'platform');
+      p.setDisplaySize(lvl.platW, 28).refreshBody();
+    });
 
-    // Coins (above platforms and along the path)
+    // Coins
     this.coins = this.physics.add.staticGroup();
-    const coinSpots = [
-      [270, -165], [300, -165], [330, -165],
-      [500, -215], [530, -215],
-      [930, -235], [960, -235], [990, -235],
-      [1370, -235], [1400, -235],
-      [1810, -245], [1840, -245], [1870, -245],
-      [2270, -235], [2300, -235],
-    ];
-    coinSpots.forEach(([x, dy]) => {
+    lvl.coins.forEach(([x, dy]) => {
       const c = this.coins.create(x, GAMEPLAY_H + dy, 'coin');
       this.tweens.add({ targets: c, y: c.y - 8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     });
 
-    // Enemies patrol the ground
+    // Enemies
     this.enemies = this.physics.add.group();
-    [620, 1240, 1920, 2560].forEach(x => {
+    lvl.enemies.forEach(x => {
       const e = this.enemies.create(x, GAMEPLAY_H - 90, 'enemy');
       e.setCollideWorldBounds(true).setVelocityX(70).setBounceX(1);
       e.body.setAllowGravity(true);
     });
     this.physics.add.collider(this.enemies, this.platforms);
 
-    // Goal star at the far right
+    // Goal star
     this.goal = this.physics.add.staticSprite(WORLD_W - 80, GAMEPLAY_H - 90, 'goal');
     this.tweens.add({ targets: this.goal, angle: 360, duration: 4000, repeat: -1 });
     this.tweens.add({ targets: this.goal, scale: 1.15, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
@@ -227,6 +266,11 @@ class GameScene extends Phaser.Scene {
       }).setOrigin(0.5).setScrollFactor(0).setDepth(100);
       this.hearts.push(h);
     }
+
+    // Level badge: top-center below hearts
+    this.add.text(GW / 2, HUD_Y + 30, 'LVL ' + this.levelNum, {
+      fontSize: '16px', fontFamily: 'monospace', color: '#ffffffaa',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(100);
 
     // Version: bottom-left corner, small, dimmed
     this.add.text(8, GH - CONTROLS_H - 4, 'v' + VERSION, {
@@ -349,7 +393,7 @@ class GameScene extends Phaser.Scene {
     if (sceneKey === 'Win') this.isWin = true; else this.isGameOver = true;
     this.physics.world.pause();
     this.touch.left = this.touch.right = this.touch.jump = false;
-    this.scene.launch('EndScene', { win: sceneKey === 'Win', score: this.score });
+    this.scene.launch('EndScene', { win: sceneKey === 'Win', score: this.score, level: this.levelNum });
     this.scene.bringToTop('EndScene');
   }
 
@@ -417,36 +461,101 @@ class GameScene extends Phaser.Scene {
   }
 }
 
-// ── End Scene (Game Over / Win) — big friendly button ─────────
+// ── End Scene (Game Over / Win) ────────────────────────────────
 class EndScene extends Phaser.Scene {
   constructor() { super('EndScene'); }
 
   create(data) {
-    const win = !!(data && data.win);
-    this.add.rectangle(GW / 2, GH / 2, GW, GH, 0x000000, 0.6);
+    const win   = !!(data && data.win);
+    const level = (data && data.level) || 1;
 
-    this.add.text(GW / 2, GH / 2 - 90, win ? '\u2B50' : '\uD83D\uDE22', {
+    this.add.rectangle(GW / 2, GH / 2, GW, GH, 0x000000, 0.62);
+
+    this.add.text(GW / 2, GH / 2 - 100, win ? '\u2B50' : '\uD83D\uDE22', {
       fontSize: '90px',
     }).setOrigin(0.5);
 
-    this.add.text(GW / 2, GH / 2 - 10, win ? 'YOU WIN!' : 'TRY AGAIN', {
+    this.add.text(GW / 2, GH / 2 - 20, win ? 'YOU WIN!' : 'TRY AGAIN', {
       fontSize: '56px', fontFamily: 'Arial Black, sans-serif',
       color: win ? '#ffd23f' : '#ff6b6b', stroke: '#000000', strokeThickness: 8,
     }).setOrigin(0.5);
 
-    // Big play-again button (green = go)
-    const btn = this.add.circle(GW / 2, GH / 2 + 110, 60, 0x44c767)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(GW / 2, GH / 2 + 110, '\u25B6', {
-      fontSize: '54px', color: '#ffffff',
-    }).setOrigin(0.5);
-    this.tweens.add({ targets: btn, scale: 1.1, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-
-    btn.on('pointerdown', () => {
+    const stopAll = () => {
       this.scene.stop('EndScene');
       this.scene.stop('GameScene');
-      this.scene.start('GameScene');
+    };
+
+    // ▶ Retry / continue — green, left of center
+    const retryBtn = this.add.circle(GW / 2 - 90, GH / 2 + 100, 55, 0x44c767)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(GW / 2 - 90, GH / 2 + 100, '\u25B6', {
+      fontSize: '48px', color: '#ffffff',
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: retryBtn, scale: 1.08, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    retryBtn.on('pointerdown', () => {
+      stopAll();
+      this.scene.start('GameScene', { level });
     });
+
+    // 🏠 Level select — blue, right of center
+    const homeBtn = this.add.circle(GW / 2 + 90, GH / 2 + 100, 55, 0x4a90e2)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(GW / 2 + 90, GH / 2 + 100, '\uD83C\uDFAE', {
+      fontSize: '40px',
+    }).setOrigin(0.5);
+    homeBtn.on('pointerdown', () => {
+      stopAll();
+      this.scene.start('LevelSelectScene');
+    });
+  }
+}
+
+// ── Level Select Scene ─────────────────────────────────────────
+class LevelSelectScene extends Phaser.Scene {
+  constructor() { super('LevelSelectScene'); }
+
+  create() {
+    // Sky background
+    this.add.rectangle(GW / 2, GH / 2, GW, GH, 0x3a6bbf);
+
+    // Clouds
+    for (let i = 0; i < 6; i++) {
+      this.add.ellipse(
+        Phaser.Math.Between(80, GW - 80),
+        Phaser.Math.Between(40, 200),
+        Phaser.Math.Between(100, 180),
+        44, 0xffffff, 0.7
+      );
+    }
+
+    // Title star
+    this.add.text(GW / 2, 90, '\u2B50', { fontSize: '72px' }).setOrigin(0.5);
+
+    // Two big level buttons side by side
+    const btnY = GH / 2 + 20;
+    [
+      { num: 1, x: GW / 2 - 130, color: 0x44c767, label: '1' },
+      { num: 2, x: GW / 2 + 130, color: 0xe8553c, label: '2' },
+    ].forEach(({ num, x, color, label }) => {
+      const circle = this.add.circle(x, btnY, 80, color)
+        .setInteractive({ useHandCursor: true });
+      this.add.text(x, btnY, label, {
+        fontSize: '72px', fontFamily: 'Arial Black, sans-serif', color: '#ffffff',
+        stroke: '#00000066', strokeThickness: 6,
+      }).setOrigin(0.5);
+
+      // Gentle pulse
+      this.tweens.add({ targets: circle, scale: 1.06, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+
+      circle.on('pointerdown', () => {
+        this.scene.start('GameScene', { level: num });
+      });
+    });
+
+    // Version
+    this.add.text(8, GH - 6, 'v' + VERSION, {
+      fontSize: '14px', fontFamily: 'monospace', color: '#ffffff66',
+    }).setOrigin(0, 1);
   }
 }
 
@@ -465,7 +574,7 @@ const config = {
     default: 'arcade',
     arcade: { gravity: { y: GRAVITY }, debug: false },
   },
-  scene: [GameScene, EndScene],
+  scene: [LevelSelectScene, GameScene, EndScene],
 };
 
 new Phaser.Game(config);
