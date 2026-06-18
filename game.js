@@ -19,7 +19,7 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '1.5';
+const VERSION = '1.6';
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
@@ -129,6 +129,24 @@ const LEVELS = [
       [2385, -250], [2415, -250],
     ],
     enemies: [600, 1200, 1860, 2480, 3050],
+  },
+  {
+    platW: 180,
+    plats: [
+      [280,  GAMEPLAY_H - 150], [530,  GAMEPLAY_H - 205], [780,  GAMEPLAY_H - 150],
+      [1035, GAMEPLAY_H - 225], [1285, GAMEPLAY_H - 160], [1540, GAMEPLAY_H - 225],
+      [1790, GAMEPLAY_H - 180], [2050, GAMEPLAY_H - 235], [2305, GAMEPLAY_H - 165],
+      [2570, GAMEPLAY_H - 225], [2830, GAMEPLAY_H - 150], [3080, GAMEPLAY_H - 195],
+    ],
+    coins: [
+      [250, -195], [280, -195], [310, -195],
+      [510, -250], [540, -250],
+      [1005, -270], [1035, -270], [1065, -270],
+      [1510, -270], [1540, -270],
+      [2020, -280], [2050, -280], [2080, -280],
+      [2540, -270], [2570, -270],
+    ],
+    enemies: [560, 1100, 1700, 2300, 2900, 3150],
   },
 ];
 
@@ -461,51 +479,52 @@ class GameScene extends Phaser.Scene {
   }
 }
 
+// ── Shared helper: draw the 3 traffic-light level buttons ──────
+// Traffic-light colors: green → amber → red
+const LEVEL_COLORS = [0x44c767, 0xf5a623, 0xe8553c];
+
+function buildLevelButtons(scene, btnY, onPick) {
+  const xs = [GW / 2 - 180, GW / 2, GW / 2 + 180];
+  [1, 2, 3].forEach((num, i) => {
+    const x = xs[i];
+    const circle = scene.add.circle(x, btnY, 68, LEVEL_COLORS[i])
+      .setInteractive({ useHandCursor: true });
+    scene.add.text(x, btnY, String(num), {
+      fontSize: '60px', fontFamily: 'Arial Black, sans-serif', color: '#ffffff',
+      stroke: '#00000055', strokeThickness: 5,
+    }).setOrigin(0.5);
+    scene.tweens.add({ targets: circle, scale: 1.07, duration: 650 + i * 80, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    circle.on('pointerdown', () => onPick(num));
+  });
+}
+
 // ── End Scene (Game Over / Win) ────────────────────────────────
 class EndScene extends Phaser.Scene {
   constructor() { super('EndScene'); }
 
   create(data) {
-    const win   = !!(data && data.win);
-    const level = (data && data.level) || 1;
+    const win = !!(data && data.win);
 
-    this.add.rectangle(GW / 2, GH / 2, GW, GH, 0x000000, 0.62);
+    this.add.rectangle(GW / 2, GH / 2, GW, GH, 0x000000, 0.65);
 
-    this.add.text(GW / 2, GH / 2 - 100, win ? '\u2B50' : '\uD83D\uDE22', {
-      fontSize: '90px',
+    this.add.text(GW / 2, GH / 2 - 140, win ? '\u2B50' : '\uD83D\uDE22', {
+      fontSize: '80px',
     }).setOrigin(0.5);
 
-    this.add.text(GW / 2, GH / 2 - 20, win ? 'YOU WIN!' : 'TRY AGAIN', {
-      fontSize: '56px', fontFamily: 'Arial Black, sans-serif',
+    this.add.text(GW / 2, GH / 2 - 60, win ? 'YOU WIN!' : 'TRY AGAIN', {
+      fontSize: '52px', fontFamily: 'Arial Black, sans-serif',
       color: win ? '#ffd23f' : '#ff6b6b', stroke: '#000000', strokeThickness: 8,
     }).setOrigin(0.5);
 
-    const stopAll = () => {
+    // "Choose a level" hint — icon only, no text needed for a 5-year-old
+    this.add.text(GW / 2, GH / 2 + 10, '\uD83C\uDFAE', {
+      fontSize: '36px',
+    }).setOrigin(0.5);
+
+    buildLevelButtons(this, GH / 2 + 110, (num) => {
       this.scene.stop('EndScene');
       this.scene.stop('GameScene');
-    };
-
-    // ▶ Retry / continue — green, left of center
-    const retryBtn = this.add.circle(GW / 2 - 90, GH / 2 + 100, 55, 0x44c767)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(GW / 2 - 90, GH / 2 + 100, '\u25B6', {
-      fontSize: '48px', color: '#ffffff',
-    }).setOrigin(0.5);
-    this.tweens.add({ targets: retryBtn, scale: 1.08, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    retryBtn.on('pointerdown', () => {
-      stopAll();
-      this.scene.start('GameScene', { level });
-    });
-
-    // 🏠 Level select — blue, right of center
-    const homeBtn = this.add.circle(GW / 2 + 90, GH / 2 + 100, 55, 0x4a90e2)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(GW / 2 + 90, GH / 2 + 100, '\uD83C\uDFAE', {
-      fontSize: '40px',
-    }).setOrigin(0.5);
-    homeBtn.on('pointerdown', () => {
-      stopAll();
-      this.scene.start('LevelSelectScene');
+      this.scene.start('GameScene', { level: num });
     });
   }
 }
@@ -515,44 +534,23 @@ class LevelSelectScene extends Phaser.Scene {
   constructor() { super('LevelSelectScene'); }
 
   create() {
-    // Sky background
     this.add.rectangle(GW / 2, GH / 2, GW, GH, 0x3a6bbf);
 
     // Clouds
     for (let i = 0; i < 6; i++) {
       this.add.ellipse(
         Phaser.Math.Between(80, GW - 80),
-        Phaser.Math.Between(40, 200),
-        Phaser.Math.Between(100, 180),
-        44, 0xffffff, 0.7
+        Phaser.Math.Between(40, 180),
+        Phaser.Math.Between(100, 190), 44, 0xffffff, 0.7
       );
     }
 
-    // Title star
     this.add.text(GW / 2, 90, '\u2B50', { fontSize: '72px' }).setOrigin(0.5);
 
-    // Two big level buttons side by side
-    const btnY = GH / 2 + 20;
-    [
-      { num: 1, x: GW / 2 - 130, color: 0x44c767, label: '1' },
-      { num: 2, x: GW / 2 + 130, color: 0xe8553c, label: '2' },
-    ].forEach(({ num, x, color, label }) => {
-      const circle = this.add.circle(x, btnY, 80, color)
-        .setInteractive({ useHandCursor: true });
-      this.add.text(x, btnY, label, {
-        fontSize: '72px', fontFamily: 'Arial Black, sans-serif', color: '#ffffff',
-        stroke: '#00000066', strokeThickness: 6,
-      }).setOrigin(0.5);
-
-      // Gentle pulse
-      this.tweens.add({ targets: circle, scale: 1.06, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-
-      circle.on('pointerdown', () => {
-        this.scene.start('GameScene', { level: num });
-      });
+    buildLevelButtons(this, GH / 2 + 40, (num) => {
+      this.scene.start('GameScene', { level: num });
     });
 
-    // Version
     this.add.text(8, GH - 6, 'v' + VERSION, {
       fontSize: '14px', fontFamily: 'monospace', color: '#ffffff66',
     }).setOrigin(0, 1);
