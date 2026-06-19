@@ -19,7 +19,7 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '1.6';
+const VERSION = '1.7';
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
@@ -89,6 +89,43 @@ function makeTextures(scene) {
   g.destroy();
 }
 
+// ── Sound effects (Web Audio API — no external files needed) ───
+// AudioContext is lazy-created on first user gesture to satisfy
+// browser autoplay policy.
+const SFX = (() => {
+  let ctx = null;
+  const get = () => {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return ctx;
+  };
+  const tone = (freq, freqEnd, type, dur, vol) => {
+    try {
+      const c = get();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.connect(g); g.connect(c.destination);
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, c.currentTime);
+      if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, c.currentTime + dur);
+      g.gain.setValueAtTime(vol || 0.28, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+      o.start(c.currentTime);
+      o.stop(c.currentTime + dur + 0.01);
+    } catch (_) {}
+  };
+  return {
+    coin:   () => tone(880, 1320, 'sine',     0.14, 0.22),
+    jump:   () => tone(260, 380,  'sine',     0.10, 0.14),
+    bounce: () => tone(420, 560,  'square',   0.12, 0.18),
+    damage: () => tone(240, 100,  'sawtooth', 0.28, 0.28),
+    win:    () => {
+      tone(523, 523, 'sine', 0.14, 0.28);
+      setTimeout(() => tone(659, 659, 'sine', 0.14, 0.28), 150);
+      setTimeout(() => tone(784, 784, 'sine', 0.22, 0.32), 300);
+    },
+  };
+})();
+
 // ── Level data ────────────────────────────────────────────────
 // Each entry drives buildLevel(). Level 2 is ~5% harder:
 //   slightly narrower platforms (200 vs 220px), slightly higher,
@@ -147,6 +184,42 @@ const LEVELS = [
       [2540, -270], [2570, -270],
     ],
     enemies: [560, 1100, 1700, 2300, 2900, 3150],
+  },
+  {
+    platW: 160,
+    plats: [
+      [275,  GAMEPLAY_H - 155], [545,  GAMEPLAY_H - 210], [815,  GAMEPLAY_H - 155],
+      [1090, GAMEPLAY_H - 230], [1360, GAMEPLAY_H - 168], [1635, GAMEPLAY_H - 230],
+      [1905, GAMEPLAY_H - 190], [2180, GAMEPLAY_H - 245], [2455, GAMEPLAY_H - 175],
+      [2730, GAMEPLAY_H - 230], [3000, GAMEPLAY_H - 158], [3220, GAMEPLAY_H - 202],
+    ],
+    coins: [
+      [245, -200], [275, -200], [305, -200],
+      [525, -255], [555, -255],
+      [1060, -275], [1090, -275], [1120, -275],
+      [1605, -275], [1635, -275],
+      [2150, -290], [2180, -290], [2210, -290],
+      [2700, -275], [2730, -275],
+    ],
+    enemies: [530, 1080, 1680, 2210, 2760, 3050, 3200],
+  },
+  {
+    platW: 140,
+    plats: [
+      [265,  GAMEPLAY_H - 170], [555,  GAMEPLAY_H - 225], [840,  GAMEPLAY_H - 170],
+      [1130, GAMEPLAY_H - 245], [1415, GAMEPLAY_H - 182], [1705, GAMEPLAY_H - 245],
+      [1990, GAMEPLAY_H - 205], [2285, GAMEPLAY_H - 258], [2570, GAMEPLAY_H - 188],
+      [2860, GAMEPLAY_H - 245], [3090, GAMEPLAY_H - 172], [3240, GAMEPLAY_H - 215],
+    ],
+    coins: [
+      [235, -215], [265, -215], [295, -215],
+      [530, -270], [560, -270],
+      [1100, -290], [1130, -290], [1160, -290],
+      [1678, -290], [1708, -290],
+      [2255, -303], [2285, -303], [2315, -303],
+      [2832, -290], [2862, -290],
+    ],
+    enemies: [520, 1070, 1650, 2240, 2810, 3050, 3190, 3280],
   },
 ];
 
@@ -359,6 +432,7 @@ class GameScene extends Phaser.Scene {
     this.score++;
     this.scoreText.setText('' + this.score);
     this.tweens.add({ targets: this.scoreText, scale: 1.4, duration: 110, yoyo: true });
+    SFX.coin();
   }
 
   hitEnemy(player, enemy) {
@@ -366,12 +440,9 @@ class GameScene extends Phaser.Scene {
     const stomping = player.body.velocity.y > 0 &&
                      player.body.bottom < enemy.body.top + 14;
     if (stomping) {
-      enemy.disableBody(true, false);
-      this.tweens.add({
-        targets: enemy, scaleY: 0.2, alpha: 0,
-        duration: 160, onComplete: () => enemy.destroy(),
-      });
-      player.setVelocityY(-JUMP_FORCE * 0.6); // bounce
+      // Hero bounces off — enemy is unharmed
+      player.setVelocityY(-JUMP_FORCE * 0.65);
+      SFX.bounce();
     } else {
       this.takeDamage();
     }
@@ -388,6 +459,7 @@ class GameScene extends Phaser.Scene {
       return;
     }
 
+    SFX.damage();
     this.player.setPosition(this.spawnPoint.x, this.spawnPoint.y);
     this.player.setVelocity(0, 0);
     this.moveDirection = -1;
@@ -400,6 +472,7 @@ class GameScene extends Phaser.Scene {
 
   reachGoal() {
     if (this.isWin || this.isGameOver) return;
+    SFX.win();
     this.endGame('Win');
   }
 
@@ -456,6 +529,7 @@ class GameScene extends Phaser.Scene {
       player.setVelocityY(-JUMP_FORCE);
       this.jumpBufferedAt = -9999;
       this.lastGroundedAt = -9999;
+      SFX.jump();
     }
 
     // Variable jump height: releasing jump early cuts the rise
@@ -479,21 +553,23 @@ class GameScene extends Phaser.Scene {
   }
 }
 
-// ── Shared helper: draw the 3 traffic-light level buttons ──────
-// Traffic-light colors: green → amber → red
-const LEVEL_COLORS = [0x44c767, 0xf5a623, 0xe8553c];
+// ── Shared helper: draw 5 traffic-light level buttons ──────────
+// Gradient: green → yellow-green → yellow → orange → red
+const LEVEL_COLORS = [0x44c767, 0x96cc2e, 0xf5c518, 0xf58518, 0xe8553c];
 
 function buildLevelButtons(scene, btnY, onPick) {
-  const xs = [GW / 2 - 180, GW / 2, GW / 2 + 180];
-  [1, 2, 3].forEach((num, i) => {
+  // 5 buttons evenly spaced, radius 52, centered on GW/2
+  const S = 195; // spacing between centers
+  const xs = [GW/2 - 2*S, GW/2 - S, GW/2, GW/2 + S, GW/2 + 2*S];
+  [1, 2, 3, 4, 5].forEach((num, i) => {
     const x = xs[i];
-    const circle = scene.add.circle(x, btnY, 68, LEVEL_COLORS[i])
+    const circle = scene.add.circle(x, btnY, 52, LEVEL_COLORS[i])
       .setInteractive({ useHandCursor: true });
     scene.add.text(x, btnY, String(num), {
-      fontSize: '60px', fontFamily: 'Arial Black, sans-serif', color: '#ffffff',
+      fontSize: '50px', fontFamily: 'Arial Black, sans-serif', color: '#ffffff',
       stroke: '#00000055', strokeThickness: 5,
     }).setOrigin(0.5);
-    scene.tweens.add({ targets: circle, scale: 1.07, duration: 650 + i * 80, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    scene.tweens.add({ targets: circle, scale: 1.07, duration: 620 + i * 70, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     circle.on('pointerdown', () => onPick(num));
   });
 }
