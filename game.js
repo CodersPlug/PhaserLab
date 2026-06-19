@@ -440,7 +440,11 @@ class GameScene extends Phaser.Scene {
     const stomping = player.body.velocity.y > 0 &&
                      player.body.bottom < enemy.body.top + 14;
     if (stomping) {
-      // Hero bounces off — enemy is unharmed
+      enemy.disableBody(true, false);
+      this.tweens.add({
+        targets: enemy, scaleY: 0.2, alpha: 0,
+        duration: 160, onComplete: () => enemy.destroy(),
+      });
       player.setVelocityY(-JUMP_FORCE * 0.65);
       SFX.bounce();
     } else {
