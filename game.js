@@ -19,7 +19,7 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '1.8';
+const VERSION = '1.9';
 const SUPER_STAR_SPEED = 58;
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
@@ -145,8 +145,8 @@ const SFX = (() => {
 })();
 
 // ── Level data ────────────────────────────────────────────────
-// Each level has a main route + optional upper route (Mario-style).
-// Upper route: narrower plats, extra enemies, patrolling super star (×2 score).
+// Optional superStar (x on ground): patrols like a Mario mushroom among
+// enemies — chase it for ×2 stars; skip it and keep playing normally.
 const LEVELS = [
   {
     platW: 220,
@@ -165,15 +165,7 @@ const LEVELS = [
       [2270, -235], [2300, -235],
     ],
     enemies: [620, 1240, 1920, 2560],
-    upper: {
-      platW: 130,
-      plats: [
-        [500, GAMEPLAY_H - 300], [720, GAMEPLAY_H - 300], [940, GAMEPLAY_H - 300],
-        [1160, GAMEPLAY_H - 300],
-      ],
-      enemies: [[820, GAMEPLAY_H - 340]],
-      superStar: [500, GAMEPLAY_H - 330],
-    },
+    superStar: 900,
   },
   {
     platW: 200,
@@ -192,15 +184,7 @@ const LEVELS = [
       [2385, -250], [2415, -250],
     ],
     enemies: [600, 1200, 1860, 2480, 3050],
-    upper: {
-      platW: 110,
-      plats: [
-        [480, GAMEPLAY_H - 315], [710, GAMEPLAY_H - 315], [960, GAMEPLAY_H - 320],
-        [1220, GAMEPLAY_H - 315],
-      ],
-      enemies: [[600, GAMEPLAY_H - 355], [1080, GAMEPLAY_H - 355]],
-      superStar: [480, GAMEPLAY_H - 345],
-    },
+    superStar: 1050,
   },
   {
     platW: 180,
@@ -219,15 +203,7 @@ const LEVELS = [
       [2540, -270], [2570, -270],
     ],
     enemies: [560, 1100, 1700, 2300, 2900, 3150],
-    upper: {
-      platW: 95,
-      plats: [
-        [470, GAMEPLAY_H - 330], [720, GAMEPLAY_H - 335], [980, GAMEPLAY_H - 338],
-        [1250, GAMEPLAY_H - 330], [1520, GAMEPLAY_H - 335],
-      ],
-      enemies: [[540, GAMEPLAY_H - 370], [880, GAMEPLAY_H - 370], [1380, GAMEPLAY_H - 370]],
-      superStar: [470, GAMEPLAY_H - 360],
-    },
+    superStar: 1450,
   },
 ];
 
@@ -298,15 +274,6 @@ class GameScene extends Phaser.Scene {
       p.setDisplaySize(lvl.platW, 28).refreshBody();
     });
 
-    // Optional upper route — narrower platforms, higher up
-    if (lvl.upper) {
-      lvl.upper.plats.forEach(([x, y]) => {
-        const p = this.platforms.create(x, y, 'platform');
-        p.setDisplaySize(lvl.upper.platW, 28).refreshBody();
-        p.setTint(0xffe8c8); // subtle warm tint marks the risky path
-      });
-    }
-
     // Coins
     this.coins = this.physics.add.staticGroup();
     lvl.coins.forEach(([x, dy]) => {
@@ -314,29 +281,20 @@ class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: c, y: c.y - 8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     });
 
-    // Enemies (main route)
+    // Enemies
     this.enemies = this.physics.add.group();
     lvl.enemies.forEach(x => {
       const e = this.enemies.create(x, GAMEPLAY_H - 90, 'enemy');
       e.setCollideWorldBounds(true).setVelocityX(70).setBounceX(1);
       e.body.setAllowGravity(true);
     });
-    // Enemies on upper route (extra risk)
-    if (lvl.upper && lvl.upper.enemies) {
-      lvl.upper.enemies.forEach(([x, y]) => {
-        const e = this.enemies.create(x, y, 'enemy');
-        e.setCollideWorldBounds(true).setVelocityX(-60).setBounceX(1);
-        e.body.setAllowGravity(true);
-      });
-    }
     this.physics.add.collider(this.enemies, this.platforms);
 
-    // Super star — patrols upper route like a Mario mushroom
+    // Super star — patrols the ground among enemies (Mario mushroom)
     this.superStar = null;
-    if (lvl.upper && lvl.upper.superStar) {
-      const [sx, sy] = lvl.upper.superStar;
-      this.superStar = this.physics.add.sprite(sx, sy, 'superstar');
-      this.superStar.setBounce(0).setCollideWorldBounds(false);
+    if (lvl.superStar) {
+      this.superStar = this.physics.add.sprite(lvl.superStar, GAMEPLAY_H - 90, 'superstar');
+      this.superStar.setBounce(0).setCollideWorldBounds(true).setBounceX(1);
       this.superStar.body.setAllowGravity(true);
       this.superStar.body.setSize(36, 36);
       this.superStar.setVelocityX(SUPER_STAR_SPEED);
@@ -622,17 +580,11 @@ class GameScene extends Phaser.Scene {
       if (e.body.blocked.right) e.setVelocityX(-Math.abs(e.body.velocity.x) || -70);
     });
 
-    // Super star patrol: Mario-mushroom walk on upper route
+    // Super star patrol: Mario-mushroom walk on the ground
     if (this.superStar && this.superStar.active) {
       const s = this.superStar;
       if (s.body.blocked.left)  s.setVelocityX(SUPER_STAR_SPEED);
       if (s.body.blocked.right) s.setVelocityX(-SUPER_STAR_SPEED);
-      if (s.y > GAMEPLAY_H + 40) {
-        this.tweens.add({
-          targets: s, alpha: 0, duration: 200, onComplete: () => s.destroy(),
-        });
-        this.superStar = null;
-      }
     }
   }
 }
