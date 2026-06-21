@@ -19,7 +19,8 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '1.7';
+const VERSION = '1.8';
+const SUPER_STAR_SPEED = 58;
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
@@ -33,7 +34,7 @@ const C = {
   plat:   0xc98a4b,
   coin:   0xffd23f,
   enemy:  0xe8553c,
-  player: 0x3d7fe6,
+  player: 0xff6eb4,
   goal:   0xffd23f,
 };
 
@@ -41,7 +42,7 @@ const C = {
 function makeTextures(scene) {
   const g = scene.make.graphics({ x: 0, y: 0, add: false });
 
-  // player: rounded blue body with a friendly face
+  // player: rounded pink body with a friendly face
   g.clear();
   g.fillStyle(C.player); g.fillRoundedRect(0, 0, 40, 46, 10);
   g.fillStyle(0xffffff); g.fillCircle(13, 16, 6); g.fillCircle(27, 16, 6);
@@ -86,6 +87,19 @@ function makeTextures(scene) {
   g.fillPoints(pts, true);
   g.generateTexture('goal', 56, 56);
 
+  // super star — pink-gold, optional upper-route bonus
+  g.clear();
+  g.fillStyle(0xff4da6);
+  const scx = 24, scy = 24, sR = 22, sr = 9, spts = [];
+  for (let i = 0; i < 10; i++) {
+    const ang = -Math.PI / 2 + i * Math.PI / 5;
+    const rad = i % 2 === 0 ? sR : sr;
+    spts.push({ x: scx + Math.cos(ang) * rad, y: scy + Math.sin(ang) * rad });
+  }
+  g.fillPoints(spts, true);
+  g.fillStyle(0xfff0a8); g.fillCircle(16, 14, 5);
+  g.generateTexture('superstar', 48, 48);
+
   g.destroy();
 }
 
@@ -123,13 +137,16 @@ const SFX = (() => {
       setTimeout(() => tone(659, 659, 'sine', 0.14, 0.28), 150);
       setTimeout(() => tone(784, 784, 'sine', 0.22, 0.32), 300);
     },
+    superStar: () => {
+      tone(660, 990, 'sine', 0.12, 0.26);
+      setTimeout(() => tone(990, 1320, 'sine', 0.18, 0.30), 100);
+    },
   };
 })();
 
 // ── Level data ────────────────────────────────────────────────
-// Each entry drives buildLevel(). Level 2 is ~5% harder:
-//   slightly narrower platforms (200 vs 220px), slightly higher,
-//   gaps ~20px wider, one extra enemy.
+// Each level has a main route + optional upper route (Mario-style).
+// Upper route: narrower plats, extra enemies, patrolling super star (×2 score).
 const LEVELS = [
   {
     platW: 220,
@@ -148,6 +165,15 @@ const LEVELS = [
       [2270, -235], [2300, -235],
     ],
     enemies: [620, 1240, 1920, 2560],
+    upper: {
+      platW: 130,
+      plats: [
+        [500, GAMEPLAY_H - 300], [720, GAMEPLAY_H - 300], [940, GAMEPLAY_H - 300],
+        [1160, GAMEPLAY_H - 300],
+      ],
+      enemies: [[820, GAMEPLAY_H - 340]],
+      superStar: [500, GAMEPLAY_H - 330],
+    },
   },
   {
     platW: 200,
@@ -166,6 +192,15 @@ const LEVELS = [
       [2385, -250], [2415, -250],
     ],
     enemies: [600, 1200, 1860, 2480, 3050],
+    upper: {
+      platW: 110,
+      plats: [
+        [480, GAMEPLAY_H - 315], [710, GAMEPLAY_H - 315], [960, GAMEPLAY_H - 320],
+        [1220, GAMEPLAY_H - 315],
+      ],
+      enemies: [[600, GAMEPLAY_H - 355], [1080, GAMEPLAY_H - 355]],
+      superStar: [480, GAMEPLAY_H - 345],
+    },
   },
   {
     platW: 180,
@@ -184,42 +219,15 @@ const LEVELS = [
       [2540, -270], [2570, -270],
     ],
     enemies: [560, 1100, 1700, 2300, 2900, 3150],
-  },
-  {
-    platW: 160,
-    plats: [
-      [275,  GAMEPLAY_H - 155], [545,  GAMEPLAY_H - 210], [815,  GAMEPLAY_H - 155],
-      [1090, GAMEPLAY_H - 230], [1360, GAMEPLAY_H - 168], [1635, GAMEPLAY_H - 230],
-      [1905, GAMEPLAY_H - 190], [2180, GAMEPLAY_H - 245], [2455, GAMEPLAY_H - 175],
-      [2730, GAMEPLAY_H - 230], [3000, GAMEPLAY_H - 158], [3220, GAMEPLAY_H - 202],
-    ],
-    coins: [
-      [245, -200], [275, -200], [305, -200],
-      [525, -255], [555, -255],
-      [1060, -275], [1090, -275], [1120, -275],
-      [1605, -275], [1635, -275],
-      [2150, -290], [2180, -290], [2210, -290],
-      [2700, -275], [2730, -275],
-    ],
-    enemies: [530, 1080, 1680, 2210, 2760, 3050, 3200],
-  },
-  {
-    platW: 140,
-    plats: [
-      [265,  GAMEPLAY_H - 170], [555,  GAMEPLAY_H - 225], [840,  GAMEPLAY_H - 170],
-      [1130, GAMEPLAY_H - 245], [1415, GAMEPLAY_H - 182], [1705, GAMEPLAY_H - 245],
-      [1990, GAMEPLAY_H - 205], [2285, GAMEPLAY_H - 258], [2570, GAMEPLAY_H - 188],
-      [2860, GAMEPLAY_H - 245], [3090, GAMEPLAY_H - 172], [3240, GAMEPLAY_H - 215],
-    ],
-    coins: [
-      [235, -215], [265, -215], [295, -215],
-      [530, -270], [560, -270],
-      [1100, -290], [1130, -290], [1160, -290],
-      [1678, -290], [1708, -290],
-      [2255, -303], [2285, -303], [2315, -303],
-      [2832, -290], [2862, -290],
-    ],
-    enemies: [520, 1070, 1650, 2240, 2810, 3050, 3190, 3280],
+    upper: {
+      platW: 95,
+      plats: [
+        [470, GAMEPLAY_H - 330], [720, GAMEPLAY_H - 335], [980, GAMEPLAY_H - 338],
+        [1250, GAMEPLAY_H - 330], [1520, GAMEPLAY_H - 335],
+      ],
+      enemies: [[540, GAMEPLAY_H - 370], [880, GAMEPLAY_H - 370], [1380, GAMEPLAY_H - 370]],
+      superStar: [470, GAMEPLAY_H - 360],
+    },
   },
 ];
 
@@ -260,6 +268,7 @@ class GameScene extends Phaser.Scene {
     this.isInvincible = false;
     this.moveDirection = -1;     // auto-run starts moving left
     this.spawnPoint = { x: 220, y: GAMEPLAY_H - 120 };
+    this.superStarCollected = false;
   }
 
   // ─── Decorative parallax clouds ───
@@ -289,6 +298,15 @@ class GameScene extends Phaser.Scene {
       p.setDisplaySize(lvl.platW, 28).refreshBody();
     });
 
+    // Optional upper route — narrower platforms, higher up
+    if (lvl.upper) {
+      lvl.upper.plats.forEach(([x, y]) => {
+        const p = this.platforms.create(x, y, 'platform');
+        p.setDisplaySize(lvl.upper.platW, 28).refreshBody();
+        p.setTint(0xffe8c8); // subtle warm tint marks the risky path
+      });
+    }
+
     // Coins
     this.coins = this.physics.add.staticGroup();
     lvl.coins.forEach(([x, dy]) => {
@@ -296,14 +314,38 @@ class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: c, y: c.y - 8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     });
 
-    // Enemies
+    // Enemies (main route)
     this.enemies = this.physics.add.group();
     lvl.enemies.forEach(x => {
       const e = this.enemies.create(x, GAMEPLAY_H - 90, 'enemy');
       e.setCollideWorldBounds(true).setVelocityX(70).setBounceX(1);
       e.body.setAllowGravity(true);
     });
+    // Enemies on upper route (extra risk)
+    if (lvl.upper && lvl.upper.enemies) {
+      lvl.upper.enemies.forEach(([x, y]) => {
+        const e = this.enemies.create(x, y, 'enemy');
+        e.setCollideWorldBounds(true).setVelocityX(-60).setBounceX(1);
+        e.body.setAllowGravity(true);
+      });
+    }
     this.physics.add.collider(this.enemies, this.platforms);
+
+    // Super star — patrols upper route like a Mario mushroom
+    this.superStar = null;
+    if (lvl.upper && lvl.upper.superStar) {
+      const [sx, sy] = lvl.upper.superStar;
+      this.superStar = this.physics.add.sprite(sx, sy, 'superstar');
+      this.superStar.setBounce(0).setCollideWorldBounds(false);
+      this.superStar.body.setAllowGravity(true);
+      this.superStar.body.setSize(36, 36);
+      this.superStar.setVelocityX(SUPER_STAR_SPEED);
+      this.physics.add.collider(this.superStar, this.platforms);
+      this.tweens.add({
+        targets: this.superStar, scale: 1.12, duration: 450,
+        yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      });
+    }
 
     // Goal star
     this.goal = this.physics.add.staticSprite(WORLD_W - 80, GAMEPLAY_H - 90, 'goal');
@@ -321,6 +363,9 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.coins,   this.collectCoin, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.hitEnemy,    null, this);
     this.physics.add.overlap(this.player, this.goal,    this.reachGoal,   null, this);
+    if (this.superStar) {
+      this.physics.add.overlap(this.player, this.superStar, this.collectSuperStar, null, this);
+    }
   }
 
   // ─── Ledge climb: fires while collision is still live ───
@@ -433,6 +478,28 @@ class GameScene extends Phaser.Scene {
     this.scoreText.setText('' + this.score);
     this.tweens.add({ targets: this.scoreText, scale: 1.4, duration: 110, yoyo: true });
     SFX.coin();
+  }
+
+  collectSuperStar(player, star) {
+    if (!star.active || this.superStarCollected) return;
+    this.superStarCollected = true;
+    star.disableBody(true, false);
+    this.score *= 2;
+    this.scoreText.setText('' + this.score);
+    this.tweens.add({ targets: this.scoreText, scale: 1.8, duration: 200, yoyo: true });
+    const flash = this.add.text(GW / 2, 42, '\u00D72', {
+      fontSize: '42px', fontFamily: 'Arial Black, sans-serif',
+      color: '#ff4da6', stroke: '#ffffff', strokeThickness: 6,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(150).setAlpha(0);
+    this.tweens.add({
+      targets: flash, alpha: 1, y: 22, duration: 350,
+      yoyo: true, onComplete: () => flash.destroy(),
+    });
+    this.tweens.add({
+      targets: star, scale: 2.2, alpha: 0, duration: 280,
+      onComplete: () => star.destroy(),
+    });
+    SFX.superStar();
   }
 
   hitEnemy(player, enemy) {
@@ -551,29 +618,39 @@ class GameScene extends Phaser.Scene {
     // Enemy patrol: reverse at walls
     this.enemies.getChildren().forEach(e => {
       if (!e.active) return;
-      if (e.body.blocked.left)  e.setVelocityX(70);
-      if (e.body.blocked.right) e.setVelocityX(-70);
+      if (e.body.blocked.left)  e.setVelocityX(Math.abs(e.body.velocity.x) || 70);
+      if (e.body.blocked.right) e.setVelocityX(-Math.abs(e.body.velocity.x) || -70);
     });
+
+    // Super star patrol: Mario-mushroom walk on upper route
+    if (this.superStar && this.superStar.active) {
+      const s = this.superStar;
+      if (s.body.blocked.left)  s.setVelocityX(SUPER_STAR_SPEED);
+      if (s.body.blocked.right) s.setVelocityX(-SUPER_STAR_SPEED);
+      if (s.y > GAMEPLAY_H + 40) {
+        this.tweens.add({
+          targets: s, alpha: 0, duration: 200, onComplete: () => s.destroy(),
+        });
+        this.superStar = null;
+      }
+    }
   }
 }
 
-// ── Shared helper: draw 5 traffic-light level buttons ──────────
-// Gradient: green → yellow-green → yellow → orange → red
-const LEVEL_COLORS = [0x44c767, 0x96cc2e, 0xf5c518, 0xf58518, 0xe8553c];
+// ── Shared helper: draw 3 traffic-light level buttons ──────────
+const LEVEL_COLORS = [0x44c767, 0xf5a623, 0xe8553c];
 
 function buildLevelButtons(scene, btnY, onPick) {
-  // 5 buttons evenly spaced, radius 52, centered on GW/2
-  const S = 195; // spacing between centers
-  const xs = [GW/2 - 2*S, GW/2 - S, GW/2, GW/2 + S, GW/2 + 2*S];
-  [1, 2, 3, 4, 5].forEach((num, i) => {
+  const xs = [GW / 2 - 180, GW / 2, GW / 2 + 180];
+  [1, 2, 3].forEach((num, i) => {
     const x = xs[i];
-    const circle = scene.add.circle(x, btnY, 52, LEVEL_COLORS[i])
+    const circle = scene.add.circle(x, btnY, 68, LEVEL_COLORS[i])
       .setInteractive({ useHandCursor: true });
     scene.add.text(x, btnY, String(num), {
-      fontSize: '50px', fontFamily: 'Arial Black, sans-serif', color: '#ffffff',
+      fontSize: '60px', fontFamily: 'Arial Black, sans-serif', color: '#ffffff',
       stroke: '#00000055', strokeThickness: 5,
     }).setOrigin(0.5);
-    scene.tweens.add({ targets: circle, scale: 1.07, duration: 620 + i * 70, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    scene.tweens.add({ targets: circle, scale: 1.07, duration: 650 + i * 80, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     circle.on('pointerdown', () => onPick(num));
   });
 }
