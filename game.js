@@ -19,8 +19,10 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '2.0';
+const VERSION = '2.1';
 const SUPER_STAR_SPEED = 58;
+const MAX_PLAYS_PER_DAY = 5;   // parent tunable — games allowed per calendar day
+const PLAY_STORAGE_KEY  = 'phaserlab_daily_plays';
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
@@ -151,6 +153,41 @@ const SFX = (() => {
     },
   };
 })();
+
+// ── Daily play limit (localStorage, resets at midnight local time) ──
+const DailyPlays = {
+  today() { return new Date().toISOString().slice(0, 10); },
+  get() {
+    try {
+      const raw = localStorage.getItem(PLAY_STORAGE_KEY);
+      if (!raw) return { date: this.today(), count: 0 };
+      const data = JSON.parse(raw);
+      if (data.date !== this.today()) return { date: this.today(), count: 0 };
+      return data;
+    } catch (_) {
+      return { date: this.today(), count: 0 };
+    }
+  },
+  remaining() { return Math.max(0, MAX_PLAYS_PER_DAY - this.get().count); },
+  canPlay()   { return this.remaining() > 0; },
+  record() {
+    const data = this.get();
+    data.count++;
+    localStorage.setItem(PLAY_STORAGE_KEY, JSON.stringify({ date: this.today(), count: data.count }));
+  },
+  reset() { localStorage.removeItem(PLAY_STORAGE_KEY); },
+};
+
+function tryStartLevel(fromScene, levelNum, stopScenes = []) {
+  if (!DailyPlays.canPlay()) {
+    stopScenes.forEach(k => fromScene.scene.stop(k));
+    fromScene.scene.start('DailyLimitScene');
+    return;
+  }
+  DailyPlays.record();
+  stopScenes.forEach(k => fromScene.scene.stop(k));
+  fromScene.scene.start('GameScene', { level: levelNum });
+}
 
 // ── Level data ────────────────────────────────────────────────
 // Optional superStar (x on ground): patrols like a Mario mushroom among
@@ -656,9 +693,7 @@ class EndScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     buildLevelButtons(this, GH / 2 + 110, (num) => {
-      this.scene.stop('EndScene');
-      this.scene.stop('GameScene');
-      this.scene.start('GameScene', { level: num });
+      tryStartLevel(this, num, ['EndScene', 'GameScene']);
     });
   }
 }
@@ -681,20 +716,67 @@ class LevelSelectScene extends Phaser.Scene {
 
     this.add.text(GW / 2, 90, '\u2B50', { fontSize: '72px' }).setOrigin(0.5);
 
+    // Plays left today — filled stars = remaining (icon-only for kids)
+    const rem = DailyPlays.remaining();
+    const pillY = 168;
+    const startX = GW / 2 - (MAX_PLAYS_PER_DAY - 1) * 22;
+    for (let i = 0; i < MAX_PLAYS_PER_DAY; i++) {
+      this.add.text(startX + i * 44, pillY, i < rem ? '\u2B50' : '\u2606', {
+        fontSize: '30px', color: i < rem ? '#ffd23f' : '#ffffff44',
+      }).setOrigin(0.5);
+    }
+
     buildLevelButtons(this, GH / 2 + 40, (num) => {
-      this.scene.start('GameScene', { level: num });
+      tryStartLevel(this, num);
     });
 
-    this.add.text(8, GH - 6, 'v' + VERSION, {
+    const versionLabel = this.add.text(8, GH - 6, 'v' + VERSION, {
       fontSize: '14px', fontFamily: 'monospace', color: '#ffffff66',
-    }).setOrigin(0, 1);
+    }).setOrigin(0, 1).setInteractive();
+    // Parent reset: hold version label 3 s to clear today's counter
+    let holdEvt = null;
+    versionLabel.on('pointerdown', () => {
+      holdEvt = this.time.delayedCall(3000, () => { DailyPlays.reset(); this.scene.restart(); });
+    });
+    const cancelHold = () => { if (holdEvt) { holdEvt.remove(); holdEvt = null; } };
+    versionLabel.on('pointerup', cancelHold);
+    versionLabel.on('pointerout', cancelHold);
+  }
+}
+
+// ── Daily limit screen ─────────────────────────────────────────
+class DailyLimitScene extends Phaser.Scene {
+  constructor() { super('DailyLimitScene'); }
+
+  create() {
+    this.add.rectangle(GW / 2, GH / 2, GW, GH, 0x1a2a4a);
+
+    for (let i = 0; i < 8; i++) {
+      this.add.text(Phaser.Math.Between(60, GW - 60), Phaser.Math.Between(40, 200), '\u2728', {
+        fontSize: Phaser.Math.Between(18, 28) + 'px', color: '#ffffff55',
+      }).setOrigin(0.5);
+    }
+
+    this.add.text(GW / 2, GH / 2 - 100, '\uD83C\uDF19', { fontSize: '96px' }).setOrigin(0.5);
+
+    this.add.text(GW / 2, GH / 2 + 10, '\u00A1Hasta ma\u00F1ana!', {
+      fontSize: '44px', fontFamily: 'Arial Black, sans-serif',
+      color: '#c8d8ff', stroke: '#0a1530', strokeThickness: 6,
+    }).setOrigin(0.5);
+
+    this.add.text(GW / 2, GH / 2 + 80, '\uD83D\uDE34', { fontSize: '48px' }).setOrigin(0.5);
+
+    const home = this.add.circle(GW / 2, GH / 2 + 170, 52, 0x44c767)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(GW / 2, GH / 2 + 170, '\u2B50', { fontSize: '40px' }).setOrigin(0.5);
+    home.on('pointerdown', () => this.scene.start('LevelSelectScene'));
   }
 }
 
 // ── Phaser config ─────────────────────────────────────────────
 const config = {
   type: Phaser.AUTO,
-  parent: 'game',              // <-- mounts the canvas inside the centered div
+  parent: 'game',
   backgroundColor: C.sky,
   scale: {
     mode: Phaser.Scale.FIT,
@@ -706,7 +788,7 @@ const config = {
     default: 'arcade',
     arcade: { gravity: { y: GRAVITY }, debug: false },
   },
-  scene: [LevelSelectScene, GameScene, EndScene],
+  scene: [LevelSelectScene, GameScene, EndScene, DailyLimitScene],
 };
 
 new Phaser.Game(config);
