@@ -19,7 +19,7 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '1.9';
+const VERSION = '2.0';
 const SUPER_STAR_SPEED = 58;
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
@@ -87,18 +87,26 @@ function makeTextures(scene) {
   g.fillPoints(pts, true);
   g.generateTexture('goal', 56, 56);
 
-  // super star — pink-gold, optional upper-route bonus
+  // super star — bright gold + white glow, must pop on grass/enemies
   g.clear();
-  g.fillStyle(0xff4da6);
-  const scx = 24, scy = 24, sR = 22, sr = 9, spts = [];
-  for (let i = 0; i < 10; i++) {
-    const ang = -Math.PI / 2 + i * Math.PI / 5;
-    const rad = i % 2 === 0 ? sR : sr;
-    spts.push({ x: scx + Math.cos(ang) * rad, y: scy + Math.sin(ang) * rad });
-  }
-  g.fillPoints(spts, true);
-  g.fillStyle(0xfff0a8); g.fillCircle(16, 14, 5);
-  g.generateTexture('superstar', 48, 48);
+  const drawStar = (cx, cy, R, r) => {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const ang = -Math.PI / 2 + i * Math.PI / 5;
+      const rad = i % 2 === 0 ? R : r;
+      pts.push({ x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad });
+    }
+    g.fillPoints(pts, true);
+  };
+  g.fillStyle(0xfff9c4, 0.9); g.fillCircle(36, 36, 34);
+  g.fillStyle(0xffee58, 0.75); g.fillCircle(36, 36, 26);
+  g.fillStyle(0xffffff);       drawStar(36, 36, 30, 12);
+  g.fillStyle(0xffd600);       drawStar(36, 36, 25, 10);
+  g.fillStyle(0xfff176);       drawStar(36, 36, 17, 7);
+  g.fillStyle(0xffffff); g.fillCircle(27, 27, 7);
+  g.fillStyle(0xffffff); g.fillCircle(46, 30, 4);
+  g.fillStyle(0xffffff); g.fillCircle(33, 50, 3);
+  g.generateTexture('superstar', 72, 72);
 
   g.destroy();
 }
@@ -292,15 +300,25 @@ class GameScene extends Phaser.Scene {
 
     // Super star — patrols the ground among enemies (Mario mushroom)
     this.superStar = null;
+    this.superStarGlow = null;
     if (lvl.superStar) {
-      this.superStar = this.physics.add.sprite(lvl.superStar, GAMEPLAY_H - 90, 'superstar');
+      const sy = GAMEPLAY_H - 98;
+      this.superStarGlow = this.add.circle(lvl.superStar, sy, 44, 0xfff200, 0.4).setDepth(18);
+      this.tweens.add({
+        targets: this.superStarGlow, scale: 1.5, alpha: 0.12,
+        duration: 380, yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      });
+
+      this.superStar = this.physics.add.sprite(lvl.superStar, sy, 'superstar');
+      this.superStar.setScale(1.4).setDepth(20);
       this.superStar.setBounce(0).setCollideWorldBounds(true).setBounceX(1);
       this.superStar.body.setAllowGravity(true);
-      this.superStar.body.setSize(36, 36);
+      this.superStar.body.setSize(50, 50);
       this.superStar.setVelocityX(SUPER_STAR_SPEED);
       this.physics.add.collider(this.superStar, this.platforms);
+      this.tweens.add({ targets: this.superStar, angle: 360, duration: 2000, repeat: -1 });
       this.tweens.add({
-        targets: this.superStar, scale: 1.12, duration: 450,
+        targets: this.superStar, scale: 1.65, duration: 320,
         yoyo: true, repeat: -1, ease: 'Sine.inOut',
       });
     }
@@ -445,6 +463,12 @@ class GameScene extends Phaser.Scene {
     this.score *= 2;
     this.scoreText.setText('' + this.score);
     this.tweens.add({ targets: this.scoreText, scale: 1.8, duration: 200, yoyo: true });
+    if (this.superStarGlow) {
+      this.tweens.add({
+        targets: this.superStarGlow, scale: 2.5, alpha: 0,
+        duration: 300, onComplete: () => { this.superStarGlow.destroy(); this.superStarGlow = null; },
+      });
+    }
     const flash = this.add.text(GW / 2, 42, '\u00D72', {
       fontSize: '42px', fontFamily: 'Arial Black, sans-serif',
       color: '#ff4da6', stroke: '#ffffff', strokeThickness: 6,
@@ -585,6 +609,7 @@ class GameScene extends Phaser.Scene {
       const s = this.superStar;
       if (s.body.blocked.left)  s.setVelocityX(SUPER_STAR_SPEED);
       if (s.body.blocked.right) s.setVelocityX(-SUPER_STAR_SPEED);
+      if (this.superStarGlow) this.superStarGlow.setPosition(s.x, s.y);
     }
   }
 }
