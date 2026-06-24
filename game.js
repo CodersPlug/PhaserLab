@@ -19,10 +19,11 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '2.1';
+const VERSION = '2.2';
+const GAME_ID = 'phaserLab';
 const SUPER_STAR_SPEED = 58;
 const MAX_PLAYS_PER_DAY = 5;   // parent tunable — games allowed per calendar day
-const PLAY_STORAGE_KEY  = 'phaserlab_daily_plays';
+const PLAY_STORAGE_KEY  = 'phaserlab_daily_plays'; // shared across CodersPlug games (same origin)
 
 const CONTROLS_H  = 150;  // bottom strip reserved for big touch buttons
 const GAMEPLAY_H  = GH - CONTROLS_H;
@@ -154,26 +155,45 @@ const SFX = (() => {
   };
 })();
 
-// ── Daily play limit (localStorage, resets at midnight local time) ──
+// ── Daily play limit (localStorage, resets at midnight + on publish) ──
 const DailyPlays = {
   today() { return new Date().toISOString().slice(0, 10); },
-  get() {
+  load() {
+    const empty = { date: this.today(), count: 0, versions: {} };
     try {
       const raw = localStorage.getItem(PLAY_STORAGE_KEY);
-      if (!raw) return { date: this.today(), count: 0 };
+      if (!raw) return empty;
       const data = JSON.parse(raw);
-      if (data.date !== this.today()) return { date: this.today(), count: 0 };
+      if (!data.versions) data.versions = {};
+      let dirty = false;
+      if (data.date !== this.today()) {
+        data.date = this.today();
+        data.count = 0;
+        dirty = true;
+      }
+      if (data.versions[GAME_ID] !== VERSION) {
+        data.count = 0;
+        data.versions[GAME_ID] = VERSION;
+        dirty = true;
+      }
+      if (dirty) this.persist(data);
       return data;
     } catch (_) {
-      return { date: this.today(), count: 0 };
+      return empty;
     }
   },
-  remaining() { return Math.max(0, MAX_PLAYS_PER_DAY - this.get().count); },
+  persist(data) {
+    if (!data.versions) data.versions = {};
+    data.versions[GAME_ID] = VERSION;
+    localStorage.setItem(PLAY_STORAGE_KEY, JSON.stringify(data));
+  },
+  get() { return this.load(); },
+  remaining() { return Math.max(0, MAX_PLAYS_PER_DAY - this.load().count); },
   canPlay()   { return this.remaining() > 0; },
   record() {
-    const data = this.get();
+    const data = this.load();
     data.count++;
-    localStorage.setItem(PLAY_STORAGE_KEY, JSON.stringify({ date: this.today(), count: data.count }));
+    this.persist(data);
   },
   reset() { localStorage.removeItem(PLAY_STORAGE_KEY); },
 };
