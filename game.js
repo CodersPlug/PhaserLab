@@ -19,9 +19,8 @@ const COYOTE_MS   = 120;  // grace window to still jump after leaving a ledge
 const BUFFER_MS   = 140;  // jump pressed slightly before landing still fires
 const LEDGE_GRAB  = 28;   // px - bottom overlap that triggers auto-climb onto a ledge
 
-const VERSION = '2.2';
+const VERSION = '2.3';
 const GAME_ID = 'phaserLab';
-const SUPER_STAR_SPEED = 58;
 const MAX_PLAYS_PER_DAY = 5;   // parent tunable — games allowed per calendar day
 const PLAY_STORAGE_KEY  = 'phaserlab_daily_plays'; // shared across CodersPlug games (same origin)
 
@@ -90,27 +89,6 @@ function makeTextures(scene) {
   g.fillPoints(pts, true);
   g.generateTexture('goal', 56, 56);
 
-  // super star — bright gold + white glow, must pop on grass/enemies
-  g.clear();
-  const drawStar = (cx, cy, R, r) => {
-    const pts = [];
-    for (let i = 0; i < 10; i++) {
-      const ang = -Math.PI / 2 + i * Math.PI / 5;
-      const rad = i % 2 === 0 ? R : r;
-      pts.push({ x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad });
-    }
-    g.fillPoints(pts, true);
-  };
-  g.fillStyle(0xfff9c4, 0.9); g.fillCircle(36, 36, 34);
-  g.fillStyle(0xffee58, 0.75); g.fillCircle(36, 36, 26);
-  g.fillStyle(0xffffff);       drawStar(36, 36, 30, 12);
-  g.fillStyle(0xffd600);       drawStar(36, 36, 25, 10);
-  g.fillStyle(0xfff176);       drawStar(36, 36, 17, 7);
-  g.fillStyle(0xffffff); g.fillCircle(27, 27, 7);
-  g.fillStyle(0xffffff); g.fillCircle(46, 30, 4);
-  g.fillStyle(0xffffff); g.fillCircle(33, 50, 3);
-  g.generateTexture('superstar', 72, 72);
-
   g.destroy();
 }
 
@@ -147,10 +125,6 @@ const SFX = (() => {
       tone(523, 523, 'sine', 0.14, 0.28);
       setTimeout(() => tone(659, 659, 'sine', 0.14, 0.28), 150);
       setTimeout(() => tone(784, 784, 'sine', 0.22, 0.32), 300);
-    },
-    superStar: () => {
-      tone(660, 990, 'sine', 0.12, 0.26);
-      setTimeout(() => tone(990, 1320, 'sine', 0.18, 0.30), 100);
     },
   };
 })();
@@ -210,19 +184,17 @@ function tryStartLevel(fromScene, levelNum, stopScenes = []) {
 }
 
 // ── Level data ────────────────────────────────────────────────
-// Optional superStar (x on ground): patrols like a Mario mushroom among
-// enemies — chase it for ×2 stars; skip it and keep playing normally.
 const LEVELS = [
   {
     platW: 220,
     plats: [
-      [300,  GAMEPLAY_H - 120], [520,  GAMEPLAY_H - 170], [740,  GAMEPLAY_H - 120],
-      [960,  GAMEPLAY_H - 190], [1180, GAMEPLAY_H - 130], [1400, GAMEPLAY_H - 190],
-      [1620, GAMEPLAY_H - 150], [1840, GAMEPLAY_H - 200], [2060, GAMEPLAY_H - 140],
-      [2300, GAMEPLAY_H - 190], [2540, GAMEPLAY_H - 120], [2780, GAMEPLAY_H - 170],
+      [300,  GAMEPLAY_H - 160], [520,  GAMEPLAY_H - 170], [740,  GAMEPLAY_H - 160],
+      [960,  GAMEPLAY_H - 190], [1180, GAMEPLAY_H - 160], [1400, GAMEPLAY_H - 190],
+      [1620, GAMEPLAY_H - 160], [1840, GAMEPLAY_H - 200], [2060, GAMEPLAY_H - 160],
+      [2300, GAMEPLAY_H - 190], [2540, GAMEPLAY_H - 160], [2780, GAMEPLAY_H - 170],
     ],
     coins: [
-      [270, -165], [300, -165], [330, -165],
+      [270, -205], [300, -205], [330, -205],
       [500, -215], [530, -215],
       [930, -235], [960, -235], [990, -235],
       [1370, -235], [1400, -235],
@@ -230,18 +202,17 @@ const LEVELS = [
       [2270, -235], [2300, -235],
     ],
     enemies: [620, 1240, 1920, 2560],
-    superStar: 900,
   },
   {
     platW: 200,
     plats: [
-      [290,  GAMEPLAY_H - 135], [525,  GAMEPLAY_H - 185], [760,  GAMEPLAY_H - 135],
-      [995,  GAMEPLAY_H - 205], [1230, GAMEPLAY_H - 145], [1465, GAMEPLAY_H - 205],
-      [1700, GAMEPLAY_H - 165], [1935, GAMEPLAY_H - 215], [2170, GAMEPLAY_H - 150],
-      [2415, GAMEPLAY_H - 205], [2660, GAMEPLAY_H - 135], [2905, GAMEPLAY_H - 180],
+      [290,  GAMEPLAY_H - 165], [525,  GAMEPLAY_H - 185], [760,  GAMEPLAY_H - 165],
+      [995,  GAMEPLAY_H - 205], [1230, GAMEPLAY_H - 165], [1465, GAMEPLAY_H - 205],
+      [1700, GAMEPLAY_H - 170], [1935, GAMEPLAY_H - 215], [2170, GAMEPLAY_H - 165],
+      [2415, GAMEPLAY_H - 205], [2660, GAMEPLAY_H - 165], [2905, GAMEPLAY_H - 180],
     ],
     coins: [
-      [260, -180], [290, -180], [320, -180],
+      [260, -210], [290, -210], [320, -210],
       [505, -230], [535, -230],
       [965, -250], [995, -250], [1025, -250],
       [1435, -250], [1465, -250],
@@ -249,18 +220,17 @@ const LEVELS = [
       [2385, -250], [2415, -250],
     ],
     enemies: [600, 1200, 1860, 2480, 3050],
-    superStar: 1050,
   },
   {
     platW: 180,
     plats: [
-      [280,  GAMEPLAY_H - 150], [530,  GAMEPLAY_H - 205], [780,  GAMEPLAY_H - 150],
-      [1035, GAMEPLAY_H - 225], [1285, GAMEPLAY_H - 160], [1540, GAMEPLAY_H - 225],
-      [1790, GAMEPLAY_H - 180], [2050, GAMEPLAY_H - 235], [2305, GAMEPLAY_H - 165],
-      [2570, GAMEPLAY_H - 225], [2830, GAMEPLAY_H - 150], [3080, GAMEPLAY_H - 195],
+      [280,  GAMEPLAY_H - 170], [530,  GAMEPLAY_H - 205], [780,  GAMEPLAY_H - 170],
+      [1035, GAMEPLAY_H - 225], [1285, GAMEPLAY_H - 170], [1540, GAMEPLAY_H - 225],
+      [1790, GAMEPLAY_H - 180], [2050, GAMEPLAY_H - 235], [2305, GAMEPLAY_H - 170],
+      [2570, GAMEPLAY_H - 225], [2830, GAMEPLAY_H - 170], [3080, GAMEPLAY_H - 195],
     ],
     coins: [
-      [250, -195], [280, -195], [310, -195],
+      [250, -215], [280, -215], [310, -215],
       [510, -250], [540, -250],
       [1005, -270], [1035, -270], [1065, -270],
       [1510, -270], [1540, -270],
@@ -268,7 +238,6 @@ const LEVELS = [
       [2540, -270], [2570, -270],
     ],
     enemies: [560, 1100, 1700, 2300, 2900, 3150],
-    superStar: 1450,
   },
 ];
 
@@ -309,7 +278,6 @@ class GameScene extends Phaser.Scene {
     this.isInvincible = false;
     this.moveDirection = -1;     // auto-run starts moving left
     this.spawnPoint = { x: 220, y: GAMEPLAY_H - 120 };
-    this.superStarCollected = false;
   }
 
   // ─── Decorative parallax clouds ───
@@ -355,31 +323,6 @@ class GameScene extends Phaser.Scene {
     });
     this.physics.add.collider(this.enemies, this.platforms);
 
-    // Super star — patrols the ground among enemies (Mario mushroom)
-    this.superStar = null;
-    this.superStarGlow = null;
-    if (lvl.superStar) {
-      const sy = GAMEPLAY_H - 98;
-      this.superStarGlow = this.add.circle(lvl.superStar, sy, 44, 0xfff200, 0.4).setDepth(18);
-      this.tweens.add({
-        targets: this.superStarGlow, scale: 1.5, alpha: 0.12,
-        duration: 380, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      });
-
-      this.superStar = this.physics.add.sprite(lvl.superStar, sy, 'superstar');
-      this.superStar.setScale(1.4).setDepth(20);
-      this.superStar.setBounce(0).setCollideWorldBounds(true).setBounceX(1);
-      this.superStar.body.setAllowGravity(true);
-      this.superStar.body.setSize(50, 50);
-      this.superStar.setVelocityX(SUPER_STAR_SPEED);
-      this.physics.add.collider(this.superStar, this.platforms);
-      this.tweens.add({ targets: this.superStar, angle: 360, duration: 2000, repeat: -1 });
-      this.tweens.add({
-        targets: this.superStar, scale: 1.65, duration: 320,
-        yoyo: true, repeat: -1, ease: 'Sine.inOut',
-      });
-    }
-
     // Goal star
     this.goal = this.physics.add.staticSprite(WORLD_W - 80, GAMEPLAY_H - 90, 'goal');
     this.tweens.add({ targets: this.goal, angle: 360, duration: 4000, repeat: -1 });
@@ -396,9 +339,6 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.coins,   this.collectCoin, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.hitEnemy,    null, this);
     this.physics.add.overlap(this.player, this.goal,    this.reachGoal,   null, this);
-    if (this.superStar) {
-      this.physics.add.overlap(this.player, this.superStar, this.collectSuperStar, null, this);
-    }
   }
 
   // ─── Ledge climb: fires while collision is still live ───
@@ -511,34 +451,6 @@ class GameScene extends Phaser.Scene {
     this.scoreText.setText('' + this.score);
     this.tweens.add({ targets: this.scoreText, scale: 1.4, duration: 110, yoyo: true });
     SFX.coin();
-  }
-
-  collectSuperStar(player, star) {
-    if (!star.active || this.superStarCollected) return;
-    this.superStarCollected = true;
-    star.disableBody(true, false);
-    this.score *= 2;
-    this.scoreText.setText('' + this.score);
-    this.tweens.add({ targets: this.scoreText, scale: 1.8, duration: 200, yoyo: true });
-    if (this.superStarGlow) {
-      this.tweens.add({
-        targets: this.superStarGlow, scale: 2.5, alpha: 0,
-        duration: 300, onComplete: () => { this.superStarGlow.destroy(); this.superStarGlow = null; },
-      });
-    }
-    const flash = this.add.text(GW / 2, 42, '\u00D72', {
-      fontSize: '42px', fontFamily: 'Arial Black, sans-serif',
-      color: '#ff4da6', stroke: '#ffffff', strokeThickness: 6,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(150).setAlpha(0);
-    this.tweens.add({
-      targets: flash, alpha: 1, y: 22, duration: 350,
-      yoyo: true, onComplete: () => flash.destroy(),
-    });
-    this.tweens.add({
-      targets: star, scale: 2.2, alpha: 0, duration: 280,
-      onComplete: () => star.destroy(),
-    });
-    SFX.superStar();
   }
 
   hitEnemy(player, enemy) {
@@ -660,14 +572,6 @@ class GameScene extends Phaser.Scene {
       if (e.body.blocked.left)  e.setVelocityX(Math.abs(e.body.velocity.x) || 70);
       if (e.body.blocked.right) e.setVelocityX(-Math.abs(e.body.velocity.x) || -70);
     });
-
-    // Super star patrol: Mario-mushroom walk on the ground
-    if (this.superStar && this.superStar.active) {
-      const s = this.superStar;
-      if (s.body.blocked.left)  s.setVelocityX(SUPER_STAR_SPEED);
-      if (s.body.blocked.right) s.setVelocityX(-SUPER_STAR_SPEED);
-      if (this.superStarGlow) this.superStarGlow.setPosition(s.x, s.y);
-    }
   }
 }
 
